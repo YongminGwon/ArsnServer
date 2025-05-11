@@ -13,6 +13,8 @@ using namespace std;
          STL
 -----------------------*/
 #include <iostream>
+#include <thread>
+#include <chrono>
 
 /*----------------------
        Container
@@ -27,5 +29,10 @@ using namespace std;
 #include <stack>
 
 /*----------------------
-
+        NetWork
 -----------------------*/
+#include <winsock2.h>
+#include <MSWSock.h>
+#include <WS2tcpip.h>
+#include <windows.h>
+#pragma comment(lib, "ws2_32.lib")
