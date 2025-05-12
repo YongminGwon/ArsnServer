@@ -11,6 +11,7 @@ using namespace std;
 #include "GlobalCore.h"
 #include "CoreTLS.h"
 #include "CoreMacro.h"
+#include "ThreadManager.h"
 
 /*----------------------
          STL
@@ -18,6 +19,9 @@ using namespace std;
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <functional>
+#include <mutex>
+#include <memory>
 
 /*----------------------
        Container
@@ -39,3 +43,12 @@ using namespace std;
 #include <WS2tcpip.h>
 #include <windows.h>
 #pragma comment(lib, "ws2_32.lib")
+
+/*----------------------
+          Log
+-----------------------*/
+#include <plog/Log.h>
+#include <plog/Init.h>
+#include <plog/Formatters/TxtFormatter.h>
+#include <plog/Appenders/ConsoleAppender.h>
+#include <plog/Appenders/RollingFileAppender.h>
