@@ -8,6 +8,9 @@ using namespace std;
     ServerCoreIncludes
 -----------------------*/
 #include "Types.h"
+#include "GlobalCore.h"
+#include "CoreTLS.h"
+#include "CoreMacro.h"
 
 /*----------------------
          STL
