@@ -7,6 +7,7 @@ int main()
 	{
 		return 0;
 	}
+
 	SOCKET clientSocket = ::socket(AF_INET, SOCK_STREAM, 0);
 	if (clientSocket == INVALID_SOCKET)
 	{
@@ -14,43 +15,72 @@ int main()
 		cout << "Socket ErrorCode : " << errCode << endl;
 		return 0;
 	}
+	
+	u_long on = 1;
+	if (::ioctlsocket(clientSocket, FIONBIO, &on) == INVALID_SOCKET)
+	{
+		return 0;
+	}
+	
 	SOCKADDR_IN serverAddr;
 	::memset(&serverAddr, 0, sizeof(serverAddr));
 	serverAddr.sin_family = AF_INET;
 	/*serverAddr.sin_addr.s_addr = inet_addr("127.0.0.1");*/
 	::inet_pton(AF_INET, "127.0.0.1", &serverAddr.sin_addr);
 	serverAddr.sin_port = htons(8000);
-	if (::connect(clientSocket, (SOCKADDR*)&serverAddr, sizeof(serverAddr)))
+	
+	while(true)
 	{
-		int32 errCode = ::WSAGetLastError();
-		cout << "Connect ErrorCode : " << errCode << endl;
-		return 0;
+		if (::connect(clientSocket, (SOCKADDR*)&serverAddr, sizeof(serverAddr))==SOCKET_ERROR)
+		{
+			if (::WSAGetLastError() == WSAEWOULDBLOCK)
+			{
+				continue;
+			}
+			if (::WSAGetLastError() == WSAEISCONN)
+				break;
+			break;
+		}
 	}
+
 	cout << "Connected To Server" << endl;
 
+	char sendBuf[100] = "HELLO WORLD";
+
 	while (true)
-	{
-		char sendBuf[100] = "HELLO WORLD";
+	{	
 		int32 res = ::send(clientSocket, sendBuf, sizeof(sendBuf), 0);
 		if (res == SOCKET_ERROR)
 		{
-			int32 errCode = ::WSAGetLastError();
-			cout << "Send ErrorCode : " << errCode << endl;
-			return 0;
+			if (::WSAGetLastError() == WSAEWOULDBLOCK)
+			{
+				continue;
+			}
+			//ERROR
+			break;
 		}
+
 		cout << "Send Data Len = " << sizeof(sendBuf) << endl;
 
-		char recvBuf[1024];
-		int32 recvByte = ::recv(clientSocket, recvBuf, sizeof(recvBuf), 0);
-		if (recvByte <= 0)
+		while(true)
 		{
-			int32 errCode = ::WSAGetLastError();
-			cout << "Recv ErrorCode : " << errCode << endl;
-			return 0;
+			char recvBuf[1024];
+			int32 recvByte = ::recv(clientSocket, recvBuf, sizeof(recvBuf), 0);
+			if (recvByte == SOCKET_ERROR)
+			{
+				if (WSAGetLastError() == WSAEWOULDBLOCK)
+				{
+					continue;
+				}
+				break;
+			}
+			else if (recvByte == 0)
+			{
+				break;
+			}
+			cout << "Recv Data Len = " << recvByte << endl;
+			break;
 		}
-		cout << "Recv Data Data = " << recvBuf << endl;
-		cout << "Recv Data Len = " << recvByte << endl;
-
 		this_thread::sleep_for(1s);
 	}
 
