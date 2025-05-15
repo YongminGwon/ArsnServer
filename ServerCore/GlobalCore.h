@@ -30,7 +30,6 @@ private:
 
 	~GlobalCore()
 	{
-		PLOG_INFO << "=== GlobalCore Closing ===";
 	}
 
 	GlobalCore(const GlobalCore&) = delete;

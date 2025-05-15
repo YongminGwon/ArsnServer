@@ -2,88 +2,45 @@
 
 int main()
 {
-	WSADATA wsaData;
-	if (::WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
-	{
-		return 0;
-	}
+    WSADATA wsaData;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
+        return 1;
 
-	SOCKET clientSocket = ::socket(AF_INET, SOCK_STREAM, 0);
-	if (clientSocket == INVALID_SOCKET)
-	{
-		int32 errCode = ::WSAGetLastError();
-		cout << "Socket ErrorCode : " << errCode << endl;
-		return 0;
-	}
-	
-	u_long on = 1;
-	if (::ioctlsocket(clientSocket, FIONBIO, &on) == INVALID_SOCKET)
-	{
-		return 0;
-	}
-	
-	SOCKADDR_IN serverAddr;
-	::memset(&serverAddr, 0, sizeof(serverAddr));
-	serverAddr.sin_family = AF_INET;
-	/*serverAddr.sin_addr.s_addr = inet_addr("127.0.0.1");*/
-	::inet_pton(AF_INET, "127.0.0.1", &serverAddr.sin_addr);
-	serverAddr.sin_port = htons(8000);
-	
-	while(true)
-	{
-		if (::connect(clientSocket, (SOCKADDR*)&serverAddr, sizeof(serverAddr))==SOCKET_ERROR)
-		{
-			if (::WSAGetLastError() == WSAEWOULDBLOCK)
-			{
-				continue;
-			}
-			if (::WSAGetLastError() == WSAEISCONN)
-				break;
-			break;
-		}
-	}
+    SOCKET clientSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (clientSocket == INVALID_SOCKET)
+    {
+        cerr << "socket failed: " << WSAGetLastError() << endl;
+        WSACleanup();
+        return 1;
+    }
 
-	cout << "Connected To Server" << endl;
+    SOCKADDR_IN serverAddr = {};
+    serverAddr.sin_family = AF_INET;
+    inet_pton(AF_INET, "127.0.0.1", &serverAddr.sin_addr);
+    serverAddr.sin_port = htons(8000);
 
-	char sendBuf[100] = "HELLO WORLD";
+    // blocking connect
+    if (connect(clientSocket, (SOCKADDR*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR)
+    {
+        cerr << "connect failed: " << WSAGetLastError() << endl;
+        closesocket(clientSocket);
+        WSACleanup();
+        return 1;
+    }
+    cout << "Connected To Server" << endl;
 
-	while (true)
-	{	
-		int32 res = ::send(clientSocket, sendBuf, sizeof(sendBuf), 0);
-		if (res == SOCKET_ERROR)
-		{
-			if (::WSAGetLastError() == WSAEWOULDBLOCK)
-			{
-				continue;
-			}
-			//ERROR
-			break;
-		}
+    // send 데이터 전송
+    const char sendBuf[] = "HELLO WORLD";
+    int sent = send(clientSocket, sendBuf, (int)strlen(sendBuf), 0);
+    if (sent == SOCKET_ERROR)
+        cerr << "send failed: " << WSAGetLastError() << endl;
+    else
+        cout << "Sent " << sent << " bytes" << endl;
 
-		cout << "Send Data Len = " << sizeof(sendBuf) << endl;
+    shutdown(clientSocket, SD_SEND);
+    Sleep(100);
 
-		while(true)
-		{
-			char recvBuf[1024];
-			int32 recvByte = ::recv(clientSocket, recvBuf, sizeof(recvBuf), 0);
-			if (recvByte == SOCKET_ERROR)
-			{
-				if (WSAGetLastError() == WSAEWOULDBLOCK)
-				{
-					continue;
-				}
-				break;
-			}
-			else if (recvByte == 0)
-			{
-				break;
-			}
-			cout << "Recv Data Len = " << recvByte << endl;
-			break;
-		}
-		this_thread::sleep_for(1s);
-	}
-
-	::closesocket(clientSocket);
-	::WSACleanup();
+    closesocket(clientSocket);
+    WSACleanup();
+    return 0;
 }

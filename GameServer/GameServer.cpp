@@ -2,78 +2,93 @@
 
 int main()
 {
-	WSADATA wsaData;
-	if (::WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
-	{
-		return 0;
-	}
+    // 1) Winsock 초기화 및 확장 함수 로딩
+    SocketUtils::Init();
 
-	SOCKET listenSocket = ::socket(AF_INET, SOCK_STREAM, 0);
-	if (listenSocket == INVALID_SOCKET)
-	{
-		int32 errCode = ::WSAGetLastError();
-		cout << "Socket ErrorCode : " << errCode << endl;
-		return 0;
-	}
+    // 2) 리스닝 소켓 생성
+    SOCKET listenSock = SocketUtils::CreateSocket();
+    if (listenSock == INVALID_SOCKET)
+    {
+        std::cerr << "CreateSocket failed: " << WSAGetLastError() << "\n";
+        return -1;
+    }
 
-	SOCKADDR_IN serverAddr;
-	::memset(&serverAddr, 0, sizeof(serverAddr));
-	serverAddr.sin_family = AF_INET;
-	serverAddr.sin_addr.s_addr = ::htonl(INADDR_ANY);
-	serverAddr.sin_port = ::htons(8000);
+    // 3) SO_REUSEADDR 설정 (포트 바인딩 오류 방지)
+    SocketUtils::SetReuseAddr(listenSock, TRUE);
 
-	if (::bind(listenSocket, (SOCKADDR*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR)
-	{
-		int32 errCode = ::WSAGetLastError();
-		cout << "Bind ErrorCode : " << errCode << endl;
-		return 0;
-	}
+    // 4) 로컬 0.0.0.0:8000 바인드
+    if (!SocketUtils::BindAnyAddress(listenSock, 8000))
+    {
+        std::cerr << "Bind failed: " << WSAGetLastError() << "\n";
+        SocketUtils::Close(listenSock);
+        return -1;
+    }
 
-	if (::listen(listenSocket, SOMAXCONN) == SOCKET_ERROR)
-	{
-		int32 errCode = ::WSAGetLastError();
-		cout << "Listen ErrorCode : " << errCode << endl;
-		return 0;
-	}
+    // 5) Listen
+    if (!SocketUtils::Listen(listenSock, SOMAXCONN))
+    {
+        std::cerr << "Listen failed: " << WSAGetLastError() << "\n";
+        SocketUtils::Close(listenSock);
+        return -1;
+    }
 
-	while (true)
-	{
-		SOCKADDR_IN clientAddr;
-		::memset(&clientAddr, 0, sizeof(clientAddr));
-		int32 addrlen = sizeof(clientAddr);
-		SOCKET clientSocket = ::accept(listenSocket, (SOCKADDR*)&clientAddr, &addrlen);
-		if (clientSocket == INVALID_SOCKET)
-		{
-			int32 errCode = ::WSAGetLastError();
-			cout << "Accept ErrorCode : " << errCode << endl;
-			return 0;
-		}
-		char ipAddr[16];
-		::inet_ntop(AF_INET, &clientAddr.sin_addr, ipAddr, sizeof(ipAddr));
-		cout << "Client Connected! IP = " << ipAddr << endl;
+    std::cout << "GameServer listening on port 8000...\n";
 
-		while (true)
-		{
-			char recvBuf[1024];
-			int32 recvByte = ::recv(clientSocket, recvBuf, sizeof(recvBuf), 0);
-			if (recvByte <= 0)
-			{
-				int32 errCode = ::WSAGetLastError();
-				cout << "Recv ErrorCode : " << errCode << endl;
-				return 0;
-			}
-			cout << "Recv Data Data = " << recvBuf << endl;
-			cout << "Recv Data Len = " << recvByte << endl;
+    // 6) 클라이언트 접속 대기 및 처리
+    while (true)
+    {
+        // blocking accept
+        SOCKADDR_IN clientAddr;
+        int addrLen = sizeof(clientAddr);
+        SOCKET clientSock = ::accept(listenSock,
+            reinterpret_cast<SOCKADDR*>(&clientAddr),
+            &addrLen);
+        if (clientSock == INVALID_SOCKET)
+        {
+            std::cerr << "accept failed: " << WSAGetLastError() << "\n";
+            break;
+        }
 
-			int32 res = ::send(clientSocket, recvBuf, recvByte, 0);
-			if (res == SOCKET_ERROR)
-			{
-				int32 errCode = ::WSAGetLastError();
-				cout << "Send ErrorCode : " << errCode << endl;
-				return 0;
-			}
-		}
-	}
-	::WSACleanup();
-	return 0;
+        WCHAR ipStr[INET_ADDRSTRLEN] = {};
+        if (InetNtop(             // now calls InetNtopW
+            AF_INET,
+            &clientAddr.sin_addr,
+            ipStr,
+            INET_ADDRSTRLEN
+        ) != nullptr)
+        {
+            std::wcout << L"Client connected: "
+                << ipStr
+                << L":" << ntohs(clientAddr.sin_port)
+                << L"\n";
+        }
+        else
+        {
+            std::wcerr << L"InetNtopW failed: " << WSAGetLastError() << L"\n";
+        }
+
+        // 7) 데이터 수신 (최대 100바이트)
+        char buffer[100] = {};
+        int recvLen = ::recv(clientSock, buffer, (int)sizeof(buffer) - 1, 0);
+        if (recvLen > 0)
+        {
+            buffer[recvLen] = '\0';
+            std::cout << "Received (" << recvLen << " bytes): "
+                << buffer << "\n";
+        }
+        else
+        {
+            std::cout << "recv returned " << recvLen
+                << ", error " << WSAGetLastError() << "\n";
+        }
+
+        // 8) 클라이언트 연결 종료
+        ::closesocket(clientSock);
+        std::cout << "Client disconnected.\n";
+    }
+
+    // 9) 정리
+    SocketUtils::Close(listenSock);
+    SocketUtils::Clear();
+    return 0;
 }

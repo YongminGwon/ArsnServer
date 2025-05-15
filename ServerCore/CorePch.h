@@ -5,6 +5,15 @@
 using namespace std;
 
 /*----------------------
+        NetWork
+-----------------------*/
+#include <winsock2.h>
+#include <MSWSock.h>
+#include <WS2tcpip.h>
+#include <windows.h>
+#pragma comment(lib, "ws2_32.lib")
+
+/*----------------------
     ServerCoreIncludes
 -----------------------*/
 #include "Types.h"
@@ -12,6 +21,7 @@ using namespace std;
 #include "CoreTLS.h"
 #include "CoreMacro.h"
 #include "ThreadManager.h"
+#include "SocketUtils.h"
 
 /*----------------------
          STL
@@ -34,15 +44,6 @@ using namespace std;
 #include <map>
 #include <queue>
 #include <stack>
-
-/*----------------------
-        NetWork
------------------------*/
-#include <winsock2.h>
-#include <MSWSock.h>
-#include <WS2tcpip.h>
-#include <windows.h>
-#pragma comment(lib, "ws2_32.lib")
 
 /*----------------------
           Log
