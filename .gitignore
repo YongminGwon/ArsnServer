@@ -12,7 +12,6 @@ x86/Release/
 *.user
 *.userosscache
 *.vcxproj.user
-*.vcxproj.filters
 *.vc.db
 *.VC.db
 *.sdf
