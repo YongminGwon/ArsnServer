@@ -59,6 +59,8 @@ bool Listener::StartAccept(NetAddr netAddress)
         acceptEvents_.push_back(acceptEvent);
         RegisterAccept(acceptEvent);
     }
+
+    PLOG(plog::info) << "Accept Registered";
     return true;
 }
 
@@ -78,7 +80,8 @@ void Listener::RegisterAccept(AcceptEvent* acceptEvent)
     DWORD bytesRecvd = 0;
     
     BOOL ret = SocketUtils::AcceptEx(socket_, session->GetSocket(), session->recvBuf_, 0, addrLen, addrLen, &bytesRecvd, static_cast<LPOVERLAPPED>(acceptEvent));
-    if (!ret && WSAGetLastError() != ERROR_IO_PENDING)
+    int error = WSAGetLastError();
+    if (!ret && error != ERROR_IO_PENDING)
     {
         RegisterAccept(acceptEvent);
     }

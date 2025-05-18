@@ -2,6 +2,7 @@
 
 #include "ThreadManager.h"
 #include "IOCPCore.h"
+#include "SocketUtils.h"
 #include <plog/Log.h>
 #include <plog/Init.h>
 #include <plog/Formatters/TxtFormatter.h>
@@ -24,6 +25,7 @@ public:
 private:
 	GlobalCore():consoleAppender_(), fileAppender_("logs/GameServer.log", 5*1024*1024, 3), threadManager_(), iocpCore_()
 	{
+		SocketUtils::Init();
 		std::filesystem::create_directories("logs");
 		plog::init(plog::debug, &consoleAppender_).addAppender(&fileAppender_);
 
@@ -32,6 +34,7 @@ private:
 
 	~GlobalCore()
 	{
+		SocketUtils::Clear();
 	}
 
 	GlobalCore(const GlobalCore&) = delete;

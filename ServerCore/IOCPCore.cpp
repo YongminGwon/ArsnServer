@@ -14,7 +14,7 @@ IOCPCore::~IOCPCore()
 
 bool IOCPCore::Register(IOCPObject* iocpObject)
 {
-	return ::CreateIoCompletionPort(iocpObject->GetHandle(), iocpHandle_, 0, 0);
+	return ::CreateIoCompletionPort(iocpObject->GetHandle(), iocpHandle_, reinterpret_cast<ULONG_PTR>(iocpObject), 0);
 }
 
 bool IOCPCore::Dispatch(uint32 timeoutMs)
@@ -22,8 +22,12 @@ bool IOCPCore::Dispatch(uint32 timeoutMs)
 	DWORD numOfBytes = 0;
 	IOCPObject* iocpObject = nullptr;
 	IOCPEvent* iocpEvent = nullptr;
+
+	PLOG(plog::debug) << "Waiting for IOCP event...";
+
 	if (::GetQueuedCompletionStatus(iocpHandle_, &numOfBytes, reinterpret_cast<PULONG_PTR>(&iocpObject), reinterpret_cast<LPOVERLAPPED*>(&iocpEvent), timeoutMs))
 	{
+		PLOG(plog::debug) << "IOCP event received. Bytes: " << numOfBytes;
 		iocpObject->Dispatch(iocpEvent, numOfBytes);
 		return true;
 	}
