@@ -1,5 +1,5 @@
 #pragma once
-class IOCPObject
+class IOCPObject : public enable_shared_from_this<IOCPObject>
 {
 public:
 	virtual HANDLE        GetHandle() = 0;

@@ -14,20 +14,21 @@ IOCPCore::~IOCPCore()
 
 bool IOCPCore::Register(IOCPObject* iocpObject)
 {
-	return ::CreateIoCompletionPort(iocpObject->GetHandle(), iocpHandle_, reinterpret_cast<ULONG_PTR>(iocpObject), 0);
+	return ::CreateIoCompletionPort(iocpObject->GetHandle(), iocpHandle_, 0, 0);
 }
 
 bool IOCPCore::Dispatch(uint32 timeoutMs)
 {
 	DWORD numOfBytes = 0;
-	IOCPObject* iocpObject = nullptr;
+	ULONG_PTR key = 0;
 	IOCPEvent* iocpEvent = nullptr;
 
 	PLOG(plog::debug) << "Waiting for IOCP event...";
 
-	if (::GetQueuedCompletionStatus(iocpHandle_, &numOfBytes, reinterpret_cast<PULONG_PTR>(&iocpObject), reinterpret_cast<LPOVERLAPPED*>(&iocpEvent), timeoutMs))
+	if (::GetQueuedCompletionStatus(iocpHandle_, &numOfBytes, &key, reinterpret_cast<LPOVERLAPPED*>(&iocpEvent), timeoutMs))
 	{
 		PLOG(plog::debug) << "IOCP event received. Bytes: " << numOfBytes;
+		shared_ptr<IOCPObject> iocpObject = iocpEvent->owner;
 		iocpObject->Dispatch(iocpEvent, numOfBytes);
 		return true;
 	}
@@ -39,6 +40,7 @@ bool IOCPCore::Dispatch(uint32 timeoutMs)
 		case WAIT_TIMEOUT:
 			return false;
 		default:
+			shared_ptr<IOCPObject> iocpObject = iocpEvent->owner;
 			iocpObject->Dispatch(iocpEvent, numOfBytes);
 			break;
 		}

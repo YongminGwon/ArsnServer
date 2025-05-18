@@ -46,3 +46,5 @@ private:
 	plog::ConsoleAppender<plog::TxtFormatter> consoleAppender_;
 	plog::RollingFileAppender<plog::TxtFormatter> fileAppender_;
 };
+
+inline GlobalCore& GCore = GlobalCore::Instance();

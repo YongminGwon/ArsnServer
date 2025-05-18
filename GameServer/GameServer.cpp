@@ -3,22 +3,21 @@
 
 int main()
 {
-    auto& core = GlobalCore::Instance();
-    Listener listener;
-    listener.StartAccept(NetAddr(L"127.0.0.1", 8000));
+    shared_ptr<Listener> listener = make_shared<Listener>();
+    listener->StartAccept(NetAddr(L"127.0.0.1", 8000));
     
     for (int32 i = 0; i < 5; i++)
     {
-        core.GetThreadManager().Launch([&core]()
+         GCore.GetThreadManager().Launch([]()
             {
                 while (true)
                 {
-                    core.GetIOCPCore().Dispatch(INFINITE);
+                    GCore.GetIOCPCore().Dispatch(INFINITE);
                 }
             }
         );
     }
 
-    core.GetThreadManager().Join();
+    GCore.GetThreadManager().Join();
     return 0;
 }
