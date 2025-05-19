@@ -1,18 +1,30 @@
 #include "pch.h"
 #include "Listener.h"
+#include "Service.h"
+#include "Session.h"
 
 int main()
 {
-    shared_ptr<Listener> listener = make_shared<Listener>();
-    listener->StartAccept(NetAddr(L"127.0.0.1", 8000));
-    
+    SessionFactory factory = []() -> std::shared_ptr<Session> {
+        return std::make_shared<Session>();
+        };
+
+    auto service = std::make_shared<ServerService>(
+        NetAddr(L"127.0.0.1", 8000),  // 바인딩할 IP와 포트
+        factory,                      // SessionFactory
+        /*maxSessionCnt=*/100,          // 최대 동시 세션 수 (디폴트라 생략 가능)
+        /*core=*/ GCore.GetIOCPCore() // IOCPCore 레퍼런스
+    );
+
+    ASSERT_CRASH(service->Start());
+
     for (int32 i = 0; i < 5; i++)
     {
-         GCore.GetThreadManager().Launch([]()
+         GCore.GetThreadManager().Launch([service]()
             {
                 while (true)
                 {
-                    GCore.GetIOCPCore().Dispatch(INFINITE);
+                    service->GetIOCPCore().Dispatch(INFINITE);
                 }
             }
         );

@@ -14,7 +14,7 @@ public:
 
 	HANDLE                GetHandle() { return iocpHandle_; }
 
-	bool                  Register(IOCPObject* iocpObject);
+	bool                  Register(shared_ptr<IOCPObject> iocpObject);
 	bool                  Dispatch(uint32 timeoutMs);
 private: 
 	HANDLE iocpHandle_;

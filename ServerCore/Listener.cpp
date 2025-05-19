@@ -3,6 +3,7 @@
 #include "SocketUtils.h"
 #include "IOCPEvent.h"
 #include "Session.h"
+#include "Service.h"
 
 Listener::~Listener()
 {
@@ -25,14 +26,19 @@ void Listener::Dispatch(IOCPEvent* iocpEvent, int32 numOfBytes)
     ProcessAccept(acceptEvent);
 }
 
-bool Listener::StartAccept(NetAddr netAddress)
+bool Listener::StartAccept(shared_ptr<ServerService> service)
 {
+    service_ = service;
+    if (service_ == nullptr)
+    {
+        return false;
+    }
     socket_ = SocketUtils::CreateSocket();
     if (socket_ == INVALID_SOCKET)
     {
         return false;
     }
-    if (GlobalCore::Instance().GetIOCPCore().Register(this) == false)
+    if (service_->GetIOCPCore().Register(shared_from_this()) == false)
     {
         return false;
     }
@@ -44,7 +50,7 @@ bool Listener::StartAccept(NetAddr netAddress)
     {
         return false;
     }
-    if (SocketUtils::Bind(socket_, netAddress) == false)
+    if (SocketUtils::Bind(socket_, service_->GetNetAddr()) == false)
     {
         return false;
     }
@@ -52,7 +58,7 @@ bool Listener::StartAccept(NetAddr netAddress)
     {
         return false;
     }
-    const int32 acceptCnt = 1;
+    const int32 acceptCnt = service_->GetMaxSessionCnt();
     for (int32 i = 0; i < acceptCnt; i++)
     {
         AcceptEvent* acceptEvent = new AcceptEvent;
@@ -61,7 +67,7 @@ bool Listener::StartAccept(NetAddr netAddress)
         RegisterAccept(acceptEvent);
     }
 
-    PLOG(plog::info) << "Accept Registered";
+    PLOG_INFO << "Accept Registered";
     return true;
 }
 
@@ -74,7 +80,7 @@ void Listener::RegisterAccept(AcceptEvent* acceptEvent)
 {
     const DWORD addrLen = sizeof(SOCKADDR_IN) + 16;
 
-    shared_ptr<Session> session = make_shared<Session>();
+    shared_ptr<Session> session = service_->CreateSession();
     acceptEvent->Init();
     acceptEvent->session_ = session;
 
@@ -111,7 +117,7 @@ void Listener::ProcessAccept(AcceptEvent* acceptEvent)
     }
 
     session->SetNetAddress(NetAddr(peerAddr));
-
+    session->ProcessConnect();
     // PLOG Client Connected
 
     RegisterAccept(acceptEvent);

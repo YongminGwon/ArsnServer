@@ -13,7 +13,7 @@ ThreadManager::~ThreadManager()
 
 void ThreadManager::Launch(function<void()> callback)
 {
-	scoped_lock(lock_);
+	scoped_lock guard(lock_);
 	threads_.emplace_back(thread([=]()
 		{
 			InitTLS();

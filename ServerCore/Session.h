@@ -3,22 +3,49 @@
 #include "IOCPEvent.h"
 #include "NetAddr.h"
 
+class Service;
+
 class Session : public IOCPObject
 {
 public:
 	Session();
 	virtual ~Session();
 public:
-	void SetNetAddress(NetAddr address) { netAddress_ = address; }
-	NetAddr GetAddress() { return netAddress_; }
-	SOCKET GetSocket() { return socket_; }
+	void                 SetNetAddress(NetAddr address) { netAddress_ = address; }
+	NetAddr              GetAddress() { return netAddress_; }
+	SOCKET               GetSocket() { return socket_; }
+	bool                 IsConnected() { return connected_; }
+	shared_ptr<Session>  GetSessionRef() { return static_pointer_cast<Session>(shared_from_this()); }
 public:
-	virtual HANDLE GetHandle() override;
-	virtual void Dispatch(class IOCPEvent* iocpEvent, int32 numOfBytes = 0) override;
+	void                 Disconnect(const WCHAR* cause);
+	shared_ptr<Service>  GetService() { return service_.lock(); }
+	void                 SetService(shared_ptr<Service> service) { service_ = service; }
+
 public:
-	char recvBuf_[1000];
+	virtual HANDLE       GetHandle() override;
+	virtual void         Dispatch(class IOCPEvent* iocpEvent, int32 numOfBytes = 0) override;
+public:
+	void                 RegisterConnect();
+	void                 RegisterRecv();
+	void                 RegisterSend();
+
+	void                 ProcessConnect();
+	void                 ProcessRecv(int32 numOfBytes);
+	void                 ProcessSend(int32 numOfBytes);
+
+	char                 recvBuf_[1000];
+public:
+	virtual void         OnConnected() {}
+	virtual int32        OnRecv(BYTE* buffer, int32 len) { return len; }
+	virtual void         OnSend(int32 len) {}
+	virtual void         OnDisconnected() {}
+
 private:
-	SOCKET              socket_ = INVALID_SOCKET;
-	NetAddr             netAddress_ = {};
-	atomic<bool>        connected_ = false;
+	SOCKET               socket_ = INVALID_SOCKET;
+	NetAddr              netAddress_ = {};
+	atomic<bool>         connected_ = false;
+	weak_ptr<Service>    service_;
+
+	mutex                lock_;
+	RecvEvent            recvEvent_;
 };

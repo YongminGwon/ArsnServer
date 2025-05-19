@@ -3,6 +3,7 @@
 #include "NetAddr.h"
 
 class AcceptEvent;
+class ServerService;
 
 class Listener : public IOCPObject
 {
@@ -13,7 +14,7 @@ public:
 	virtual HANDLE       GetHandle() override;
 	virtual void         Dispatch(class IOCPEvent* iocpEvent, int32 numOfBytes = 0) override;
 public:
-	bool                 StartAccept(NetAddr netAddress);
+	bool                 StartAccept(shared_ptr<ServerService> service);
 	void                 CloseSocket();
 private:
 	void                 RegisterAccept(AcceptEvent* acceptEvent);
@@ -22,4 +23,5 @@ private:
 protected:
 	SOCKET socket_;
 	vector<AcceptEvent*> acceptEvents_;
+	shared_ptr<ServerService> service_;
 };

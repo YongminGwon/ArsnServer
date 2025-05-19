@@ -1,103 +1,91 @@
 #include "pch.h"
 
+void HandleError(const char* cause)
+{
+	int32 errCode = ::WSAGetLastError();
+	cout << cause << " ErrorCode : " << errCode << endl;
+}
+
 int main()
 {
-    WSADATA wsaData;
-    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
-        return 1;
+	WSAData wsaData;
+	if (::WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
+		return 0;
 
-    SOCKET clientSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (clientSocket == INVALID_SOCKET)
-    {
-        cerr << "socket failed: " << WSAGetLastError() << endl;
-        WSACleanup();
-        return 1;
-    }
+	SOCKET clientSocket = ::socket(AF_INET, SOCK_STREAM, 0);
+	if (clientSocket == INVALID_SOCKET)
+		return 0;
 
-    // 소켓 옵션 설정
-    BOOL optVal = TRUE;
-    if (setsockopt(clientSocket, SOL_SOCKET, SO_REUSEADDR, (char*)&optVal, sizeof(optVal)) == SOCKET_ERROR)
-    {
-        cerr << "setsockopt failed: " << WSAGetLastError() << endl;
-        closesocket(clientSocket);
-        WSACleanup();
-        return 1;
-    }
+	u_long on = 1;
+	if (::ioctlsocket(clientSocket, FIONBIO, &on) == INVALID_SOCKET)
+		return 0;
 
-    // LINGER 옵션 설정
-    LINGER linger;
-    linger.l_onoff = 1;
-    linger.l_linger = 0;
-    if (setsockopt(clientSocket, SOL_SOCKET, SO_LINGER, (char*)&linger, sizeof(linger)) == SOCKET_ERROR)
-    {
-        cerr << "setsockopt failed: " << WSAGetLastError() << endl;
-        closesocket(clientSocket);
-        WSACleanup();
-        return 1;
-    }
+	SOCKADDR_IN serverAddr;
+	::memset(&serverAddr, 0, sizeof(serverAddr));
+	serverAddr.sin_family = AF_INET;
+	::inet_pton(AF_INET, "127.0.0.1", &serverAddr.sin_addr);
+	serverAddr.sin_port = ::htons(8000);
 
-    SOCKADDR_IN serverAddr = {};
-    serverAddr.sin_family = AF_INET;
-    inet_pton(AF_INET, "127.0.0.1", &serverAddr.sin_addr);
-    serverAddr.sin_port = htons(8000);
+	// Connect
+	while (true)
+	{
+		if (::connect(clientSocket, (SOCKADDR*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR)
+		{
+			if (::WSAGetLastError() == WSAEWOULDBLOCK)
+			{
+				// 비동기 연결 완료를 기다림
+				WSAEVENT wsaEvent = ::WSACreateEvent();
+				::WSAEventSelect(clientSocket, wsaEvent, FD_CONNECT);
+				::WSAWaitForMultipleEvents(1, &wsaEvent, TRUE, WSA_INFINITE, FALSE);
+				::WSAEventSelect(clientSocket, wsaEvent, 0);
+				::WSACloseEvent(wsaEvent);
+			}
+			else
+			{
+				break;
+			}
+		}
+	}
 
-    // 연결 시도 (타임아웃 설정)
-    fd_set writeSet;
-    FD_ZERO(&writeSet);
-    FD_SET(clientSocket, &writeSet);
+	cout << "Connected to Server!" << endl;
 
-    timeval timeout;
-    timeout.tv_sec = 5;  // 5초 타임아웃
-    timeout.tv_usec = 0;
+	char sendBuffer[100] = "Hello World";
+	WSAEVENT wsaEvent = ::WSACreateEvent();
+	WSAOVERLAPPED overlapped = {};
+	overlapped.hEvent = wsaEvent;
 
-    if (connect(clientSocket, (SOCKADDR*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR)
-    {
-        if (WSAGetLastError() != WSAEWOULDBLOCK)
-        {
-            cerr << "connect failed: " << WSAGetLastError() << endl;
-            closesocket(clientSocket);
-            WSACleanup();
-            return 1;
-        }
+	// Send
+	while (true)
+	{
+		WSABUF wsaBuf;
+		wsaBuf.buf = sendBuffer;
+		wsaBuf.len = 100;
 
-        // select로 연결 완료 대기
-        int result = select(0, NULL, &writeSet, NULL, &timeout);
-        if (result == 0)
-        {
-            cerr << "Connection timeout" << endl;
-            closesocket(clientSocket);
-            WSACleanup();
-            return 1;
-        }
-        else if (result == SOCKET_ERROR)
-        {
-            cerr << "select failed: " << WSAGetLastError() << endl;
-            closesocket(clientSocket);
-            WSACleanup();
-            return 1;
-        }
-    }
+		DWORD sendLen = 0;
+		DWORD flags = 0;
+		if (::WSASend(clientSocket, &wsaBuf, 1, &sendLen, flags, &overlapped, nullptr) == SOCKET_ERROR)
+		{
+			if (::WSAGetLastError() == WSA_IO_PENDING)
+			{
+				// Pending
+				::WSAWaitForMultipleEvents(1, &wsaEvent, TRUE, WSA_INFINITE, FALSE);
+				::WSAGetOverlappedResult(clientSocket, &overlapped, &sendLen, FALSE, &flags);
+			}
+			else
+			{
+				// 진짜 문제 있는 상황
+				break;
+			}
+		}
 
-    cout << "Connected To Server" << endl;
+		cout << "Send Data ! Len = " << sizeof(sendBuffer) << endl;
 
-    // 데이터 송신
-    const char sendBuf[] = "HELLO WORLD";
-    int sent = send(clientSocket, sendBuf, (int)strlen(sendBuf), 0);
-    if (sent == SOCKET_ERROR)
-    {
-        cerr << "send failed: " << WSAGetLastError() << endl;
-    }
-    else
-    {
-        cout << "Sent " << sent << " bytes" << endl;
-    }
+		this_thread::sleep_for(1s);
+	}
 
-    // 연결 종료 전 잠시 대기
-    Sleep(100);
+	// 소켓 리소스 반환
+	::closesocket(clientSocket);
 
-    // 정상적인 종료
-    shutdown(clientSocket, SD_BOTH);
-    closesocket(clientSocket);
-    WSACleanup();
-    return 0;
+	// 윈속 종료
+	::WSACleanup();
 }
