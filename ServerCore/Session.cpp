@@ -12,8 +12,27 @@ Session::~Session()
 	SocketUtils::Close(socket_);
 }
 
+void Session::Send(BYTE* buffer, int32 len)
+{
+	SendEvent* sendEvent = new SendEvent;
+	sendEvent->owner = shared_from_this();
+	sendEvent->sendBuf.resize(len);
+	::memcpy(sendEvent->sendBuf.data(), buffer, len);
+
+	RegisterSend(sendEvent);
+}
+
 void Session::Disconnect(const WCHAR* cause)
 {
+	if (connected_.exchange(false) == false)
+	{
+		return;
+	}
+
+	PLOG_DEBUG << "Disconnect: " << cause;
+	OnDisconnected();
+	SocketUtils::Close(socket_);
+	GetService()->ReleaseSession(GetSessionRef());
 }
 
 HANDLE Session::GetHandle()
@@ -32,7 +51,7 @@ void Session::Dispatch(IOCPEvent* iocpEvent, int32 numOfBytes)
 		ProcessRecv(numOfBytes);
 		break;
 	case EventType::Send:
-		ProcessSend(numOfBytes);
+		ProcessSend(static_cast<SendEvent*>(iocpEvent), numOfBytes);
 		break;
 	default:
 		break;
@@ -71,8 +90,29 @@ void Session::RegisterRecv()
 	}
 }
 
-void Session::RegisterSend()
+//TODO : Scatter and Gather
+void Session::RegisterSend(SendEvent* sendEvent)
 {
+	if (IsConnected() == false)
+	{
+		PLOG_DEBUG << "Session::RegisterSend Failed : Disconnected";
+		return;
+	}
+	WSABUF wsaBuf;
+	wsaBuf.buf = (char*)sendEvent->sendBuf.data();
+	wsaBuf.len = (ULONG)sendEvent->sendBuf.size();
+
+	DWORD numOfBytes = 0;
+	if (::WSASend(socket_, &wsaBuf, 1, &numOfBytes, 0, sendEvent, nullptr) == SOCKET_ERROR)
+	{
+		int32 errCode = ::WSAGetLastError();
+		if (errCode != WSA_IO_PENDING)
+		{
+			PLOG_FATAL << "RegisterSend Failed";
+			sendEvent->owner = nullptr;
+			delete sendEvent;
+		}
+	}
 }
 
 void Session::ProcessConnect()
@@ -94,11 +134,20 @@ void Session::ProcessRecv(int32 numOfBytes)
 		return;
 	}
 
-	cout << "Recv Data Len = " << numOfBytes << endl;
+	OnRecv(recvBuf_, numOfBytes);
 
 	RegisterRecv();
 }
 
-void Session::ProcessSend(int32 numOfBytes)
+void Session::ProcessSend(SendEvent* sendEvent, int32 numOfBytes)
 {
+	sendEvent->owner = nullptr;
+	delete sendEvent;
+
+	if (numOfBytes == 0)
+	{
+		Disconnect(L"Send 0");
+		return;
+	}
+	OnSend(numOfBytes);
 }

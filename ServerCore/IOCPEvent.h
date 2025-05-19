@@ -43,4 +43,6 @@ class SendEvent : public IOCPEvent
 {
 public:
 	SendEvent() :IOCPEvent(EventType::Send) {}
+
+	vector<BYTE> sendBuf;
 };

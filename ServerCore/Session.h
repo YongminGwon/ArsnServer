@@ -17,6 +17,7 @@ public:
 	bool                 IsConnected() { return connected_; }
 	shared_ptr<Session>  GetSessionRef() { return static_pointer_cast<Session>(shared_from_this()); }
 public:
+	void                 Send(BYTE* buffer, int32 len);
 	void                 Disconnect(const WCHAR* cause);
 	shared_ptr<Service>  GetService() { return service_.lock(); }
 	void                 SetService(shared_ptr<Service> service) { service_ = service; }
@@ -27,13 +28,13 @@ public:
 public:
 	void                 RegisterConnect();
 	void                 RegisterRecv();
-	void                 RegisterSend();
+	void                 RegisterSend(SendEvent* sendEvent);
 
 	void                 ProcessConnect();
 	void                 ProcessRecv(int32 numOfBytes);
-	void                 ProcessSend(int32 numOfBytes);
+	void                 ProcessSend(SendEvent* sendEvent, int32 numOfBytes);
 
-	char                 recvBuf_[1000];
+	BYTE                 recvBuf_[1000];
 public:
 	virtual void         OnConnected() {}
 	virtual int32        OnRecv(BYTE* buffer, int32 len) { return len; }
