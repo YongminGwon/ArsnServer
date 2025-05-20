@@ -2,7 +2,7 @@
 #include "Session.h"
 #include "Service.h"
 
-Session::Session()
+Session::Session() : recvBuf_(BUFFER_SIZE)
 {
 	socket_ = SocketUtils::CreateSocket();
 }
@@ -130,8 +130,8 @@ void Session::RegisterRecv()
 	recvEvent_.owner = shared_from_this();
 
 	WSABUF wsaBuf;
-	wsaBuf.buf = reinterpret_cast<char*>(recvBuf_);
-	wsaBuf.len = sizeof(recvBuf_);
+	wsaBuf.buf = reinterpret_cast<char*>(recvBuf_.WritePos());
+	wsaBuf.len = recvBuf_.FreeSize();
 
 	DWORD numOfBytes = 0;
 	DWORD flags = 0;
@@ -192,13 +192,29 @@ void Session::ProcessDisconnect()
 void Session::ProcessRecv(int32 numOfBytes)
 {
 	recvEvent_.owner = nullptr;
+
 	if (numOfBytes == 0)
 	{
 		Disconnect(L"Recv 0");
 		return;
 	}
 
-	OnRecv(recvBuf_, numOfBytes);
+	if (recvBuf_.OnWrite(numOfBytes) == false)
+	{
+		Disconnect(L"OnWrite Failed");
+		return;
+	}
+
+	int32 dataSize = recvBuf_.DataSize();
+	int32 processDataLen = OnRecv(recvBuf_.ReadPos(), dataSize);
+
+	if (processDataLen < 0 || dataSize < processDataLen || recvBuf_.OnRead(processDataLen) == false)
+	{
+		Disconnect(L"OnRead Failed");
+		return;
+	}
+
+	recvBuf_.Clean();
 
 	RegisterRecv();
 }

@@ -86,7 +86,7 @@ void Listener::RegisterAccept(AcceptEvent* acceptEvent)
 
     DWORD bytesRecvd = 0;
     
-    BOOL ret = SocketUtils::AcceptEx(socket_, session->GetSocket(), session->recvBuf_, 0, addrLen, addrLen, &bytesRecvd, static_cast<LPOVERLAPPED>(acceptEvent));
+    BOOL ret = SocketUtils::AcceptEx(socket_, session->GetSocket(), session->recvBuf_.WritePos(), 0, addrLen, addrLen, &bytesRecvd, static_cast<LPOVERLAPPED>(acceptEvent));
     int error = WSAGetLastError();
     if (!ret && error != ERROR_IO_PENDING)
     {

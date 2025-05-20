@@ -2,11 +2,19 @@
 #include "IOCPCore.h"
 #include "IOCPEvent.h"
 #include "NetAddr.h"
+#include "RecvBuf.h"
 
 class Service;
 
 class Session : public IOCPObject
 {
+	friend class Listener;
+
+	enum
+	{
+		BUFFER_SIZE = 0x10000, // 64KB
+	};
+	
 public:
 	Session();
 	virtual ~Session();
@@ -37,7 +45,6 @@ public:
 	void                 ProcessRecv(int32 numOfBytes);
 	void                 ProcessSend(SendEvent* sendEvent, int32 numOfBytes);
 
-	BYTE                 recvBuf_[1000];
 public:
 	virtual void         OnConnected() {}
 	virtual int32        OnRecv(BYTE* buffer, int32 len) { return len; }
@@ -49,6 +56,8 @@ private:
 	NetAddr              netAddress_ = {};
 	atomic<bool>         connected_ = false;
 	weak_ptr<Service>    service_;
+
+	RecvBuf              recvBuf_;
 
 	mutex                lock_;
 	RecvEvent            recvEvent_;

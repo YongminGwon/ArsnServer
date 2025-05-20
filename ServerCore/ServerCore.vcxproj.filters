@@ -54,6 +54,9 @@
     <ClCompile Include="Service.cpp">
       <Filter>Network</Filter>
     </ClCompile>
+    <ClCompile Include="RecvBuf.cpp">
+      <Filter>Network</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h">
@@ -96,6 +99,9 @@
       <Filter>Network</Filter>
     </ClInclude>
     <ClInclude Include="Service.h">
+      <Filter>Network</Filter>
+    </ClInclude>
+    <ClInclude Include="RecvBuf.h">
       <Filter>Network</Filter>
     </ClInclude>
   </ItemGroup>
