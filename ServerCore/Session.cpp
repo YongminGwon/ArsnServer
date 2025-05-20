@@ -22,6 +22,11 @@ void Session::Send(BYTE* buffer, int32 len)
 	RegisterSend(sendEvent);
 }
 
+bool Session::Connect()
+{
+	return RegisterConnect();
+}
+
 void Session::Disconnect(const WCHAR* cause)
 {
 	if (connected_.exchange(false) == false)
@@ -33,6 +38,8 @@ void Session::Disconnect(const WCHAR* cause)
 	OnDisconnected();
 	SocketUtils::Close(socket_);
 	GetService()->ReleaseSession(GetSessionRef());
+
+	RegisterDisconnect();
 }
 
 HANDLE Session::GetHandle()
@@ -47,6 +54,9 @@ void Session::Dispatch(IOCPEvent* iocpEvent, int32 numOfBytes)
 	case EventType::Connect:
 		ProcessConnect();
 		break;
+	case EventType::Disconnect:
+		ProcessDisconnect();
+		break;
 	case EventType::Recv:
 		ProcessRecv(numOfBytes);
 		break;
@@ -58,8 +68,55 @@ void Session::Dispatch(IOCPEvent* iocpEvent, int32 numOfBytes)
 	}
 }
 
-void Session::RegisterConnect()
+bool Session::RegisterConnect()
 {
+	if (IsConnected())
+	{
+		return false;
+	}
+	if (GetService()->GetServiceType() != ServiceType::Client)
+	{
+		return false;
+	}
+	if (SocketUtils::SetReuseAddr(socket_, true) == false)
+	{
+		return false;
+	}
+	if (SocketUtils::BindAnyAddress(socket_, 0) == false)
+	{
+		return false;
+	}
+
+	connectEvent_.owner = shared_from_this();
+	
+	DWORD numOfBytes = 0;
+	SOCKADDR_IN sockAddr = GetService()->GetNetAddr().GetSockAddr();
+	if (SocketUtils::ConnectEx(socket_, reinterpret_cast<SOCKADDR*>(&sockAddr), sizeof(sockAddr), nullptr, 0, &numOfBytes, &connectEvent_) == false)
+	{
+		int32 errCode = ::WSAGetLastError();
+		if (errCode != WSA_IO_PENDING)
+		{
+			connectEvent_.owner = nullptr;
+			return false;
+		}
+	}
+
+	return true;
+}
+
+bool Session::RegisterDisconnect()
+{
+	disconnectEvent_.owner = shared_from_this();
+	if (SocketUtils::DisconnectEx(socket_, &disconnectEvent_, TF_REUSE_SOCKET, 0))
+	{
+		int32 errCode = ::WSAGetLastError();
+		if (errCode != WSA_IO_PENDING)
+		{
+			disconnectEvent_.owner = nullptr;
+			return false;
+		}
+	}
+	return true;
 }
 
 void Session::RegisterRecv()
@@ -117,12 +174,19 @@ void Session::RegisterSend(SendEvent* sendEvent)
 
 void Session::ProcessConnect()
 {
+	connectEvent_.owner = nullptr;
+
 	connected_.store(true);
 	GetService()->AddSession(GetSessionRef());
 
 	OnConnected();
 
 	RegisterRecv();
+}
+
+void Session::ProcessDisconnect()
+{
+	disconnectEvent_.owner = nullptr;
 }
 
 void Session::ProcessRecv(int32 numOfBytes)

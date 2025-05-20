@@ -44,7 +44,21 @@ ClientService::ClientService(NetAddr targetAddress, SessionFactory factory, int3
 
 bool ClientService::Start()
 {
-	return false;
+	if (CanStart() == false)
+	{
+		return false;
+	}
+
+	const int32 sessionCnt = GetMaxSessionCnt();
+	for (int32 i = 0; i < sessionCnt; i++)
+	{
+		shared_ptr<Session> session = CreateSession();
+		if (session->Connect() == false)
+		{
+			return false;
+		}
+	}
+	return true;
 }
 
 ServerService::ServerService(NetAddr targetAddress, SessionFactory factory, int32 maxSessionCnt, IOCPCore& core = GCore.GetIOCPCore())

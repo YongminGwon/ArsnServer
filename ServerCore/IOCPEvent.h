@@ -5,6 +5,7 @@ class Session;
 enum class EventType : uint8
 {
 	Connect,
+	Disconnect,
 	Accept,
 	Recv,
 	Send,
@@ -24,6 +25,12 @@ class ConnectEvent : public IOCPEvent
 {
 public:
 	ConnectEvent() :IOCPEvent(EventType::Connect) {}
+};
+
+class DisconnectEvent : public IOCPEvent
+{
+public:
+	DisconnectEvent() :IOCPEvent(EventType::Disconnect) {}
 };
 
 class AcceptEvent : public IOCPEvent

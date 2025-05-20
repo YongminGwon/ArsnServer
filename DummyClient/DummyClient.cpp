@@ -1,91 +1,67 @@
 #include "pch.h"
+#include "Service.h"
+#include "Session.h"
 
-void HandleError(const char* cause)
+char sendBuffer[] = "Hello World";
+
+class ServerSession : public Session
 {
-	int32 errCode = ::WSAGetLastError();
-	cout << cause << " ErrorCode : " << errCode << endl;
-}
+public:
+    virtual void OnConnected() override
+    {
+        cout << "Connected To Server" << endl;
+        Send((BYTE*)sendBuffer, sizeof(sendBuffer));
+    }
+
+    virtual int32 OnRecv(BYTE* buffer, int32 len) override
+    {
+        //Echo
+        cout << "OnRecv Len = " << len << endl;
+        this_thread::sleep_for(1s);
+        Send((BYTE*)sendBuffer, sizeof(sendBuffer));
+        return len;
+    }
+
+    virtual void OnSend(int32 len) override
+    {
+        cout << "OnSend Len = " << len << endl;
+    }
+
+    virtual void OnDisconnected() override
+    {
+        cout << "Disconnected" << endl;
+    }
+};
 
 int main()
 {
-	WSAData wsaData;
-	if (::WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
-		return 0;
+    this_thread::sleep_for(1s);
 
-	SOCKET clientSocket = ::socket(AF_INET, SOCK_STREAM, 0);
-	if (clientSocket == INVALID_SOCKET)
-		return 0;
+    SessionFactory factory = []() -> std::shared_ptr<Session> {
+        return std::make_shared<ServerSession>();
+        };
 
-	u_long on = 1;
-	if (::ioctlsocket(clientSocket, FIONBIO, &on) == INVALID_SOCKET)
-		return 0;
+    auto service = std::make_shared<ClientService>(
+        NetAddr(L"127.0.0.1", 8000),  // ë°”ì¸ë”©í•  IPì™€ í¬íŠ¸
+        factory,                      // SessionFactory
+        /*maxSessionCnt=*/100,          // ìµœëŒ€ ë™ì‹œ ì„¸ì…˜ ìˆ˜ (ë””í´íŠ¸ë¼ ìƒëžµ ê°€ëŠ¥)
+        /*core=*/ GCore.GetIOCPCore() // IOCPCore ë ˆí¼ëŸ°ìŠ¤
+    );
 
-	SOCKADDR_IN serverAddr;
-	::memset(&serverAddr, 0, sizeof(serverAddr));
-	serverAddr.sin_family = AF_INET;
-	::inet_pton(AF_INET, "127.0.0.1", &serverAddr.sin_addr);
-	serverAddr.sin_port = ::htons(8000);
+    ASSERT_CRASH(service->Start());
 
-	// Connect
-	while (true)
-	{
-		if (::connect(clientSocket, (SOCKADDR*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR)
-		{
-			if (::WSAGetLastError() == WSAEWOULDBLOCK)
-			{
-				// ºñµ¿±â ¿¬°á ¿Ï·á¸¦ ±â´Ù¸²
-				WSAEVENT wsaEvent = ::WSACreateEvent();
-				::WSAEventSelect(clientSocket, wsaEvent, FD_CONNECT);
-				::WSAWaitForMultipleEvents(1, &wsaEvent, TRUE, WSA_INFINITE, FALSE);
-				::WSAEventSelect(clientSocket, wsaEvent, 0);
-				::WSACloseEvent(wsaEvent);
-			}
-			else
-			{
-				break;
-			}
-		}
-	}
+    for (int32 i = 0; i < 2; i++)
+    {
+        GCore.GetThreadManager().Launch([service]()
+            {
+                while (true)
+                {
+                    service->GetIOCPCore().Dispatch(INFINITE);
+                }
+            }
+        );
+    }
 
-	cout << "Connected to Server!" << endl;
-
-	char sendBuffer[100] = "Hello World";
-	WSAEVENT wsaEvent = ::WSACreateEvent();
-	WSAOVERLAPPED overlapped = {};
-	overlapped.hEvent = wsaEvent;
-
-	// Send
-	while (true)
-	{
-		WSABUF wsaBuf;
-		wsaBuf.buf = sendBuffer;
-		wsaBuf.len = 100;
-
-		DWORD sendLen = 0;
-		DWORD flags = 0;
-		if (::WSASend(clientSocket, &wsaBuf, 1, &sendLen, flags, &overlapped, nullptr) == SOCKET_ERROR)
-		{
-			if (::WSAGetLastError() == WSA_IO_PENDING)
-			{
-				// Pending
-				::WSAWaitForMultipleEvents(1, &wsaEvent, TRUE, WSA_INFINITE, FALSE);
-				::WSAGetOverlappedResult(clientSocket, &overlapped, &sendLen, FALSE, &flags);
-			}
-			else
-			{
-				// ÁøÂ¥ ¹®Á¦ ÀÖ´Â »óÈ²
-				break;
-			}
-		}
-
-		cout << "Send Data ! Len = " << sizeof(sendBuffer) << endl;
-
-		this_thread::sleep_for(1s);
-	}
-
-	// ¼ÒÄÏ ¸®¼Ò½º ¹ÝÈ¯
-	::closesocket(clientSocket);
-
-	// À©¼Ó Á¾·á
-	::WSACleanup();
+    GCore.GetThreadManager().Join();
+    return 0;
 }

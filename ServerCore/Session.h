@@ -18,6 +18,7 @@ public:
 	shared_ptr<Session>  GetSessionRef() { return static_pointer_cast<Session>(shared_from_this()); }
 public:
 	void                 Send(BYTE* buffer, int32 len);
+	bool                 Connect();
 	void                 Disconnect(const WCHAR* cause);
 	shared_ptr<Service>  GetService() { return service_.lock(); }
 	void                 SetService(shared_ptr<Service> service) { service_ = service; }
@@ -26,11 +27,13 @@ public:
 	virtual HANDLE       GetHandle() override;
 	virtual void         Dispatch(class IOCPEvent* iocpEvent, int32 numOfBytes = 0) override;
 public:
-	void                 RegisterConnect();
+	bool                 RegisterConnect();
+	bool                 RegisterDisconnect();
 	void                 RegisterRecv();
 	void                 RegisterSend(SendEvent* sendEvent);
 
 	void                 ProcessConnect();
+	void                 ProcessDisconnect();
 	void                 ProcessRecv(int32 numOfBytes);
 	void                 ProcessSend(SendEvent* sendEvent, int32 numOfBytes);
 
@@ -49,4 +52,6 @@ private:
 
 	mutex                lock_;
 	RecvEvent            recvEvent_;
+	ConnectEvent         connectEvent_;
+	DisconnectEvent      disconnectEvent_;
 };
