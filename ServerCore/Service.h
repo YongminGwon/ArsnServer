@@ -15,7 +15,7 @@ using SessionFactory = function<shared_ptr<Session>(void)>;
 class Service : public enable_shared_from_this<Service>
 {
 public:
-	Service(ServiceType type, NetAddr address, SessionFactory factory, int32 maxSessionCnt = 1, IOCPCore& core = GCore.GetIOCPCore());
+	Service(ServiceType type, NetAddr address, SessionFactory factory, const shared_ptr<IOCPCore>& core, int32 maxSessionCnt = 1);
 	virtual ~Service() = default;
 
 	virtual bool                     Start() = 0;
@@ -26,14 +26,14 @@ public:
 	int32                            GetMaxSessionCnt() const { return maxSessionCnt_; }
 	ServiceType                      GetServiceType() const { return type_; }
 	NetAddr                          GetNetAddr() const { return netAddress_; }
-	IOCPCore&                        GetIOCPCore() const { return iocpCore_; }
+	shared_ptr<IOCPCore>             GetIOCPCore() const { return iocpCore_; }
 	
 	shared_ptr<Session>              CreateSession();
 	void                             AddSession(shared_ptr<Session> session);
 	void                             ReleaseSession(shared_ptr<Session> session);
 
 protected:
-	IOCPCore&                        iocpCore_;
+	shared_ptr<IOCPCore>             iocpCore_;
 	mutex                            lock_;
 	ServiceType                      type_;
 	NetAddr                          netAddress_ = {};
@@ -46,7 +46,7 @@ protected:
 class ClientService : public Service
 {
 public:
-	ClientService(NetAddr targetAddress, SessionFactory factory, int32 maxSessionCnt, IOCPCore& core);
+	ClientService(NetAddr targetAddress, SessionFactory factory, const shared_ptr<IOCPCore>& core, int32 maxSessionCnt);
 	virtual ~ClientService() {}
 
 	virtual bool                      Start() override;
@@ -55,7 +55,7 @@ public:
 class ServerService : public Service
 {
 public:
-	ServerService(NetAddr targetAddress, SessionFactory factory, int32 maxSessionCnt, IOCPCore& core);
+	ServerService(NetAddr targetAddress, SessionFactory factory, const shared_ptr<IOCPCore>& core, int32 maxSessionCnt);
 	virtual ~ServerService() {}
 
 	virtual bool                      Start() override;

@@ -20,10 +20,9 @@ public:
 	}
 
 	ThreadManager& GetThreadManager() { return threadManager_; }
-	IOCPCore& GetIOCPCore() { return iocpCore_; }
 
 private:
-	GlobalCore():consoleAppender_(), fileAppender_("logs/GameServer.log", 5*1024*1024, 3), threadManager_(), iocpCore_()
+	GlobalCore():consoleAppender_(), fileAppender_("logs/GameServer.log", 5*1024*1024, 3), threadManager_()
 	{
 		SocketUtils::Init();
 		std::filesystem::create_directories("logs");
@@ -41,7 +40,6 @@ private:
 	GlobalCore& operator=(const GlobalCore&) = delete;
 
 	ThreadManager threadManager_;
-	IOCPCore iocpCore_;
 
 	plog::ConsoleAppender<plog::TxtFormatter> consoleAppender_;
 	plog::RollingFileAppender<plog::TxtFormatter> fileAppender_;

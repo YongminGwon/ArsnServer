@@ -38,7 +38,7 @@ bool Listener::StartAccept(shared_ptr<ServerService> service)
     {
         return false;
     }
-    if (service_->GetIOCPCore().Register(shared_from_this()) == false)
+    if (service_->GetIOCPCore()->Register(shared_from_this()) == false)
     {
         return false;
     }

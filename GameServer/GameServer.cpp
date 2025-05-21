@@ -27,8 +27,8 @@ int main()
     auto service = std::make_shared<ServerService>(
         NetAddr(L"127.0.0.1", 8000),  // 바인딩할 IP와 포트
         factory,                      // SessionFactory
-        /*maxSessionCnt=*/100,          // 최대 동시 세션 수 (디폴트라 생략 가능)
-        /*core=*/ GCore.GetIOCPCore() // IOCPCore 레퍼런스
+        /*core=*/ make_shared<IOCPCore>(), // IOCPCore 레퍼런스
+        /*maxSessionCnt=*/100          // 최대 동시 세션 수
     );
 
     ASSERT_CRASH(service->Start());
@@ -39,7 +39,7 @@ int main()
             {
                 while (true)
                 {
-                    service->GetIOCPCore().Dispatch(INFINITE);
+                    service->GetIOCPCore()->Dispatch(INFINITE);
                 }
             }
         );
