@@ -3,8 +3,8 @@
 #include "Session.h"
 #include "Listener.h"
 
-Service::Service(ServiceType type, NetAddr address, SessionFactory factory, const shared_ptr<IOCPCore>& core, int32 maxSessionCnt)
-	:type_(type), netAddress_(std::move(address)), sessionFactory_(std::move(factory)), iocpCore_(core), maxSessionCnt_(maxSessionCnt)
+Service::Service(ServiceType type, NetAddr address, shared_ptr<IOCPCore> core, SessionFactory factory,  int32 maxSessionCnt)
+	:type_(type), netAddress_(address), iocpCore_(core), sessionFactory_(factory),  maxSessionCnt_(maxSessionCnt)
 {
 }
 
@@ -37,8 +37,8 @@ void Service::ReleaseSession(shared_ptr<Session> session)
 	sessionCnt_--;
 }
 
-ClientService::ClientService(NetAddr targetAddress, SessionFactory factory, const shared_ptr<IOCPCore>& core, int32 maxSessionCnt)
-	:Service(ServiceType::Client, targetAddress, factory, core, maxSessionCnt)
+ClientService::ClientService(NetAddr targetAddress, shared_ptr<IOCPCore> core, SessionFactory factory, int32 maxSessionCnt)
+	:Service(ServiceType::Client, targetAddress, core, factory, maxSessionCnt)
 {
 }
 
@@ -61,8 +61,8 @@ bool ClientService::Start()
 	return true;
 }
 
-ServerService::ServerService(NetAddr targetAddress, SessionFactory factory, const shared_ptr<IOCPCore>& core, int32 maxSessionCnt)
-	:Service(ServiceType::Server, targetAddress, factory, core, maxSessionCnt)
+ServerService::ServerService(NetAddr targetAddress, shared_ptr<IOCPCore> core, SessionFactory factory, int32 maxSessionCnt)
+	:Service(ServiceType::Server, targetAddress, core, factory, maxSessionCnt)
 {
 }
 

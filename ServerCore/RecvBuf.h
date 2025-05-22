@@ -16,9 +16,9 @@ public:
 	int32               DataSize(){ return writePos_ - readPos_; }
 	int32               FreeSize(){ return capacity_ - writePos_; }
 private:
-	int32               capacity_;
-	int32               bufSize_;
-	int32               readPos_;
-	int32               writePos_;
+	int32               capacity_ = 0;
+	int32               bufSize_ = 0;
+	int32               readPos_ = 0;
+	int32               writePos_ = 0;
 	vector<BYTE>        buf_;
 };

@@ -9,6 +9,8 @@ class Service;
 class Session : public IOCPObject
 {
 	friend class Listener;
+	friend class IOCPCore;
+	friend class Service;
 
 	enum
 	{
@@ -25,7 +27,7 @@ public:
 	bool                 IsConnected() { return connected_; }
 	shared_ptr<Session>  GetSessionRef() { return static_pointer_cast<Session>(shared_from_this()); }
 public:
-	void                 Send(BYTE* buffer, int32 len);
+	void                 Send(shared_ptr<SendBuf> sendBuffer);
 	bool                 Connect();
 	void                 Disconnect(const WCHAR* cause);
 	shared_ptr<Service>  GetService() { return service_.lock(); }
@@ -38,12 +40,12 @@ public:
 	bool                 RegisterConnect();
 	bool                 RegisterDisconnect();
 	void                 RegisterRecv();
-	void                 RegisterSend(SendEvent* sendEvent);
+	void                 RegisterSend();
 
 	void                 ProcessConnect();
 	void                 ProcessDisconnect();
 	void                 ProcessRecv(int32 numOfBytes);
-	void                 ProcessSend(SendEvent* sendEvent, int32 numOfBytes);
+	void                 ProcessSend(int32 numOfBytes);
 
 public:
 	virtual void         OnConnected() {}
@@ -58,9 +60,12 @@ private:
 	weak_ptr<Service>    service_;
 
 	RecvBuf              recvBuf_;
+	queue<shared_ptr<SendBuf>> sendQueue_;
+	atomic<bool>         sendRegistered_ = false;
 
 	mutex                lock_;
 	RecvEvent            recvEvent_;
+	SendEvent            sendEvent_;
 	ConnectEvent         connectEvent_;
 	DisconnectEvent      disconnectEvent_;
 };

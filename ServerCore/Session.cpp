@@ -12,14 +12,24 @@ Session::~Session()
 	SocketUtils::Close(socket_);
 }
 
-void Session::Send(BYTE* buffer, int32 len)
+void Session::Send(shared_ptr<SendBuf> sendBuffer)
 {
-	SendEvent* sendEvent = new SendEvent;
-	sendEvent->owner = shared_from_this();
-	sendEvent->sendBuf.resize(len);
-	::memcpy(sendEvent->sendBuf.data(), buffer, len);
+	if (IsConnected() == false)
+	{
+		return;
+	}
+	bool registerSend = false;
+	{
+		scoped_lock guard(lock_);
+		sendQueue_.push(sendBuffer);
 
-	RegisterSend(sendEvent);
+		if (sendRegistered_.exchange(true) == false)
+		{
+			registerSend = true;
+		}
+	}
+	if (registerSend)
+		RegisterSend();
 }
 
 bool Session::Connect()
@@ -35,10 +45,6 @@ void Session::Disconnect(const WCHAR* cause)
 	}
 
 	PLOG_DEBUG << "Disconnect: " << cause;
-	OnDisconnected();
-	SocketUtils::Close(socket_);
-	GetService()->ReleaseSession(GetSessionRef());
-
 	RegisterDisconnect();
 }
 
@@ -61,7 +67,7 @@ void Session::Dispatch(IOCPEvent* iocpEvent, int32 numOfBytes)
 		ProcessRecv(numOfBytes);
 		break;
 	case EventType::Send:
-		ProcessSend(static_cast<SendEvent*>(iocpEvent), numOfBytes);
+		ProcessSend(numOfBytes);
 		break;
 	default:
 		break;
@@ -87,6 +93,7 @@ bool Session::RegisterConnect()
 		return false;
 	}
 
+	connectEvent_.Init();
 	connectEvent_.owner = shared_from_this();
 	
 	DWORD numOfBytes = 0;
@@ -106,8 +113,9 @@ bool Session::RegisterConnect()
 
 bool Session::RegisterDisconnect()
 {
+	disconnectEvent_.Init();
 	disconnectEvent_.owner = shared_from_this();
-	if (SocketUtils::DisconnectEx(socket_, &disconnectEvent_, TF_REUSE_SOCKET, 0))
+	if (SocketUtils::DisconnectEx(socket_, &disconnectEvent_, TF_REUSE_SOCKET, 0) == false)
 	{
 		int32 errCode = ::WSAGetLastError();
 		if (errCode != WSA_IO_PENDING)
@@ -127,6 +135,7 @@ void Session::RegisterRecv()
 		return;
 	}
 
+	recvEvent_.Init();
 	recvEvent_.owner = shared_from_this();
 
 	WSABUF wsaBuf;
@@ -142,32 +151,56 @@ void Session::RegisterRecv()
 		{
 			PLOG_FATAL << "RegisterRecv Failed ErrCode : " << errCode;
 			recvEvent_.owner = nullptr;
-			return;
 		}
 	}
 }
 
-//TODO : Scatter and Gather
-void Session::RegisterSend(SendEvent* sendEvent)
+void Session::RegisterSend()
 {
 	if (IsConnected() == false)
 	{
 		PLOG_DEBUG << "Session::RegisterSend Failed : Disconnected";
 		return;
 	}
-	WSABUF wsaBuf;
-	wsaBuf.buf = (char*)sendEvent->sendBuf.data();
-	wsaBuf.len = (ULONG)sendEvent->sendBuf.size();
+
+	sendEvent_.Init();
+	sendEvent_.owner = shared_from_this();
+
+	{
+		mutex mutex;
+		scoped_lock scplock(mutex);
+
+		int32 writeSize = 0;
+		while (sendQueue_.empty() == false)
+		{
+			shared_ptr<SendBuf> sendBuffer = sendQueue_.front();
+			writeSize += sendBuffer->WriteSize();
+
+			sendQueue_.pop();
+			sendEvent_.sendBuffers.push_back(sendBuffer);
+		}
+	}
+
+	vector<WSABUF> wsaBufs;
+	wsaBufs.reserve(sendEvent_.sendBuffers.size());
+	for (auto sendBuffer : sendEvent_.sendBuffers)
+	{
+		WSABUF wsaBuf;
+		wsaBuf.buf = reinterpret_cast<char*>(sendBuffer->Buffer());
+		wsaBuf.len = static_cast<LONG>(sendBuffer->WriteSize());
+		wsaBufs.push_back(wsaBuf);
+	}
 
 	DWORD numOfBytes = 0;
-	if (::WSASend(socket_, &wsaBuf, 1, &numOfBytes, 0, sendEvent, nullptr) == SOCKET_ERROR)
+	if (::WSASend(socket_, wsaBufs.data(), static_cast<DWORD>(wsaBufs.size()), &numOfBytes, 0, &sendEvent_, nullptr) == SOCKET_ERROR)
 	{
 		int32 errCode = ::WSAGetLastError();
 		if (errCode != WSA_IO_PENDING)
 		{
 			PLOG_FATAL << "RegisterSend Failed";
-			sendEvent->owner = nullptr;
-			delete sendEvent;
+			sendEvent_.owner = nullptr;
+			sendEvent_.sendBuffers.clear();
+			sendRegistered_.store(false);
 		}
 	}
 }
@@ -176,7 +209,7 @@ void Session::ProcessConnect()
 {
 	connectEvent_.owner = nullptr;
 
-	connected_.store(true);
+	connected_ = true;
 	GetService()->AddSession(GetSessionRef());
 
 	OnConnected();
@@ -187,6 +220,8 @@ void Session::ProcessConnect()
 void Session::ProcessDisconnect()
 {
 	disconnectEvent_.owner = nullptr;
+	OnDisconnected();
+	GetService()->ReleaseSession(GetSessionRef());
 }
 
 void Session::ProcessRecv(int32 numOfBytes)
@@ -219,10 +254,10 @@ void Session::ProcessRecv(int32 numOfBytes)
 	RegisterRecv();
 }
 
-void Session::ProcessSend(SendEvent* sendEvent, int32 numOfBytes)
+void Session::ProcessSend(int32 numOfBytes)
 {
-	sendEvent->owner = nullptr;
-	delete sendEvent;
+	sendEvent_.owner = nullptr;
+	sendEvent_.sendBuffers.clear();
 
 	if (numOfBytes == 0)
 	{
@@ -230,4 +265,14 @@ void Session::ProcessSend(SendEvent* sendEvent, int32 numOfBytes)
 		return;
 	}
 	OnSend(numOfBytes);
+	mutex mutex;
+	scoped_lock scplock(mutex);
+	if (sendQueue_.empty())
+	{
+		sendRegistered_.store(false);
+	}
+	else
+	{
+		RegisterSend();
+	}
 }

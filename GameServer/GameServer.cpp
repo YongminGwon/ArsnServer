@@ -7,9 +7,11 @@ class GameSession : public Session
 public:
     virtual int32 OnRecv(BYTE* buffer, int32 len) override
     {
-        //Echo
         cout << "OnRecv Len = " << len << endl;
-        Send(buffer, len);
+
+        shared_ptr<SendBuf> sendBuffer = make_shared<SendBuf>(4096);
+        sendBuffer->CopyData(buffer, len);
+        Send(sendBuffer);
         return len;
     }
     virtual void OnSend(int32 len) override
@@ -25,24 +27,22 @@ int main()
         };
 
     auto service = std::make_shared<ServerService>(
-        NetAddr(L"127.0.0.1", 8000),  // 바인딩할 IP와 포트
-        factory,                      // SessionFactory
-        /*core=*/ make_shared<IOCPCore>(), // IOCPCore 레퍼런스
-        /*maxSessionCnt=*/100          // 최대 동시 세션 수
-    );
+        NetAddr(L"127.0.0.1", 8000),
+        make_shared<IOCPCore>(),
+        factory,
+        100);
 
     ASSERT_CRASH(service->Start());
 
     for (int32 i = 0; i < 5; i++)
     {
-         GCore.GetThreadManager().Launch([service]()
+        GCore.GetThreadManager().Launch([service]()
             {
                 while (true)
                 {
-                    service->GetIOCPCore()->Dispatch(INFINITE);
+                    service->GetIOCPCore()->Dispatch();
                 }
-            }
-        );
+            });
     }
 
     GCore.GetThreadManager().Join();

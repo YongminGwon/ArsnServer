@@ -23,6 +23,7 @@ using namespace std;
 #include "CoreMacro.h"
 #include "ThreadManager.h"
 #include "SocketUtils.h"
+#include "SendBuf.h"
 
 /*----------------------
          STL

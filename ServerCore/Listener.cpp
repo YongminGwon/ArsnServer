@@ -67,7 +67,7 @@ bool Listener::StartAccept(shared_ptr<ServerService> service)
         RegisterAccept(acceptEvent);
     }
 
-    PLOG_INFO << "Accept Registered";
+    /*PLOG_INFO << "Accept Registered";*/
     return true;
 }
 
@@ -78,19 +78,18 @@ void Listener::CloseSocket()
 
 void Listener::RegisterAccept(AcceptEvent* acceptEvent)
 {
-    const DWORD addrLen = sizeof(SOCKADDR_IN) + 16;
-
     shared_ptr<Session> session = service_->CreateSession();
     acceptEvent->Init();
     acceptEvent->session_ = session;
 
-    DWORD bytesRecvd = 0;
-    
-    BOOL ret = SocketUtils::AcceptEx(socket_, session->GetSocket(), session->recvBuf_.WritePos(), 0, addrLen, addrLen, &bytesRecvd, static_cast<LPOVERLAPPED>(acceptEvent));
-    int error = WSAGetLastError();
-    if (!ret && error != ERROR_IO_PENDING)
+    DWORD bytesRecved = 0;
+    if (SocketUtils::AcceptEx(socket_, session->GetSocket(), session->recvBuf_.WritePos(), 0, sizeof(SOCKADDR_IN) + 16, sizeof(SOCKADDR_IN) + 16, &bytesRecved, static_cast<LPOVERLAPPED>(acceptEvent)) == false)
     {
-        RegisterAccept(acceptEvent);
+        const int32 errCode = ::WSAGetLastError();
+        if (errCode != WSA_IO_PENDING)
+        {
+            RegisterAccept(acceptEvent);
+        }
     }
 }
 
@@ -105,13 +104,8 @@ void Listener::ProcessAccept(AcceptEvent* acceptEvent)
 
     SOCKADDR_IN peerAddr = {};
     int peerLen = sizeof(peerAddr);
-    if (getpeername(session->GetSocket(), reinterpret_cast<SOCKADDR*>(&peerAddr), &peerLen) == 0)
+    if (getpeername(session->GetSocket(), reinterpret_cast<SOCKADDR*>(&peerAddr), &peerLen) == SOCKET_ERROR)
     {
-        //Got peer Name
-    }
-    else
-    {
-        //plog getpeername failed
         RegisterAccept(acceptEvent);
         return;
     }

@@ -51,5 +51,5 @@ class SendEvent : public IOCPEvent
 public:
 	SendEvent() :IOCPEvent(EventType::Send) {}
 
-	vector<BYTE> sendBuf;
+	vector<shared_ptr<SendBuf>> sendBuffers;
 };

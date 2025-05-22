@@ -21,7 +21,7 @@ private:
 	void                 ProcessAccept(AcceptEvent* acceptEvent);
 
 protected:
-	SOCKET socket_;
+	SOCKET socket_ = INVALID_SOCKET;
 	vector<AcceptEvent*> acceptEvents_;
 	shared_ptr<ServerService> service_;
 };

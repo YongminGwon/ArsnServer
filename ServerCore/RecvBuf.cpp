@@ -21,7 +21,7 @@ void RecvBuf::Clean()
 	}
 	else 
 	{
-		if (FreeSize() < bufSize_ && readPos_ >= bufSize_)
+		if (FreeSize() < bufSize_)
 		{
 			::memcpy(&buf_, &buf_[readPos_], dataSize);
 			readPos_ = 0;

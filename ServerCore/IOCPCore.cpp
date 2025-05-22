@@ -10,6 +10,7 @@ IOCPCore::IOCPCore()
 
 IOCPCore::~IOCPCore()
 {
+	::CloseHandle(iocpHandle_);
 }
 
 bool IOCPCore::Register(shared_ptr<IOCPObject> iocpObject)
@@ -23,14 +24,13 @@ bool IOCPCore::Dispatch(uint32 timeoutMs)
 	ULONG_PTR key = 0;
 	IOCPEvent* iocpEvent = nullptr;
 
-	PLOG_DEBUG << "Waiting for IOCP event...";
+	/*PLOG_DEBUG << "Waiting for IOCP event...";*/
 
 	if (::GetQueuedCompletionStatus(iocpHandle_, &numOfBytes, &key, reinterpret_cast<LPOVERLAPPED*>(&iocpEvent), timeoutMs))
 	{
-		PLOG_DEBUG << "IOCP event received. Bytes: " << numOfBytes;
+		//PLOG_DEBUG << "IOCP event received. Bytes: " << numOfBytes;
 		shared_ptr<IOCPObject> iocpObject = iocpEvent->owner;
 		iocpObject->Dispatch(iocpEvent, numOfBytes);
-		return true;
 	}
 	else
 	{
@@ -45,5 +45,5 @@ bool IOCPCore::Dispatch(uint32 timeoutMs)
 			break;
 		}
 	}
-	return false;
+	return true;
 }
