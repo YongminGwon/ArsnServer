@@ -3,8 +3,12 @@
   <ItemGroup>
     <ClCompile Include="GameServer.cpp" />
     <ClCompile Include="pch.cpp" />
+    <ClCompile Include="GameSessionManager.cpp" />
+    <ClCompile Include="GameSession.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
+    <ClInclude Include="GameSessionManager.h" />
+    <ClInclude Include="GameSession.h" />
   </ItemGroup>
 </Project>
